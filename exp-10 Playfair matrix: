@@ -1,0 +1,178 @@
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#define SIZE 5
+#define MAX 200
+
+char matrix[SIZE][SIZE] = {
+    {'M', 'F', 'H', 'I', 'K'},
+    {'U', 'N', 'O', 'P', 'Q'},
+    {'Z', 'V', 'W', 'X', 'Y'},
+    {'E', 'L', 'A', 'R', 'G'},
+    {'D', 'S', 'T', 'B', 'C'}
+};
+
+/* Find the row and column of a character */
+void findPosition(char ch, int *row, int *column)
+{
+    int i, j;
+
+    if (ch == 'J')
+    {
+        ch = 'I';
+    }
+
+    for (i = 0; i < SIZE; i++)
+    {
+        for (j = 0; j < SIZE; j++)
+        {
+            if (matrix[i][j] == ch)
+            {
+                *row = i;
+                *column = j;
+                return;
+            }
+        }
+    }
+}
+
+/* Remove spaces and punctuation */
+void prepareMessage(char message[], char prepared[])
+{
+    int i, j = 0;
+
+    for (i = 0; message[i] != '\0'; i++)
+    {
+        if (isalpha((unsigned char)message[i]))
+        {
+            prepared[j] = toupper((unsigned char)message[i]);
+
+            if (prepared[j] == 'J')
+            {
+                prepared[j] = 'I';
+            }
+
+            j++;
+        }
+    }
+
+    prepared[j] = '\0';
+}
+
+/* Create Playfair letter pairs */
+void createPairs(char prepared[], char pairs[])
+{
+    int i = 0;
+    int j = 0;
+    int length = strlen(prepared);
+
+    while (i < length)
+    {
+        pairs[j++] = prepared[i];
+
+        if (i + 1 >= length)
+        {
+            /* Add X when the number of letters is odd */
+            pairs[j++] = 'X';
+            i++;
+        }
+        else if (prepared[i] == prepared[i + 1])
+        {
+            /* Add X between repeated letters */
+            pairs[j++] = 'X';
+            i++;
+        }
+        else
+        {
+            pairs[j++] = prepared[i + 1];
+            i += 2;
+        }
+    }
+
+    pairs[j] = '\0';
+}
+
+/* Encrypt the Playfair letter pairs */
+void encrypt(char pairs[], char cipher[])
+{
+    int i;
+    int row1, column1;
+    int row2, column2;
+
+    for (i = 0; pairs[i] != '\0'; i += 2)
+    {
+        findPosition(pairs[i], &row1, &column1);
+        findPosition(pairs[i + 1], &row2, &column2);
+
+        if (row1 == row2)
+        {
+            /* Same row: move one position to the right */
+            cipher[i] = matrix[row1][(column1 + 1) % SIZE];
+            cipher[i + 1] = matrix[row2][(column2 + 1) % SIZE];
+        }
+        else if (column1 == column2)
+        {
+            /* Same column: move one position downward */
+            cipher[i] = matrix[(row1 + 1) % SIZE][column1];
+            cipher[i + 1] = matrix[(row2 + 1) % SIZE][column2];
+        }
+        else
+        {
+            /* Rectangle rule */
+            cipher[i] = matrix[row1][column2];
+            cipher[i + 1] = matrix[row2][column1];
+        }
+    }
+
+    cipher[i] = '\0';
+}
+
+int main(void)
+{
+    char message[MAX] =
+        "Must see you over Cadogan West. Coming at once";
+
+    char prepared[MAX];
+    char pairs[MAX];
+    char cipher[MAX];
+
+    int i;
+
+    prepareMessage(message, prepared);
+    createPairs(prepared, pairs);
+    encrypt(pairs, cipher);
+
+    printf("Playfair Matrix:\n");
+
+    for (i = 0; i < SIZE; i++)
+    {
+        printf("%c %c %c %c %c\n",
+               matrix[i][0],
+               matrix[i][1],
+               matrix[i][2],
+               matrix[i][3],
+               matrix[i][4]);
+    }
+
+    printf("\nOriginal message:\n%s\n", message);
+    printf("\nPrepared message:\n%s\n", prepared);
+
+    printf("\nLetter pairs:\n");
+
+    for (i = 0; pairs[i] != '\0'; i += 2)
+    {
+        printf("%c%c ", pairs[i], pairs[i + 1]);
+    }
+
+    printf("\n\nEncrypted pairs:\n");
+
+    for (i = 0; cipher[i] != '\0'; i += 2)
+    {
+        printf("%c%c ", cipher[i], cipher[i + 1]);
+    }
+
+    printf("\n\nCiphertext:\n%s\n", cipher);
+
+    return 0;
+}
