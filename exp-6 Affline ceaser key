@@ -1,0 +1,44 @@
+#include <stdio.h>
+
+int main(void)
+{
+    int a, b;
+    int keyFound = 0;
+
+    for (a = 1; a < 26; a++)
+    {
+        // Valid multiplicative keys for modulo 26:
+        // a must be odd and must not be 13
+        if (a % 2 == 0 || a == 13)
+        {
+            continue;
+        }
+
+        // From the condition: (4a + b) mod 26 = 1
+        b = (1 - (4 * a)) % 26;
+
+        if (b < 0)
+        {
+            b += 26;
+        }
+
+        // Check the second condition:
+        // (19a + b) mod 26 = 20
+        if (((19 * a) + b) % 26 == 20)
+        {
+            printf("Key found:\n");
+            printf("a = %d\n", a);
+            printf("b = %d\n", b);
+
+            keyFound = 1;
+            break;
+        }
+    }
+
+    if (keyFound == 0)
+    {
+        printf("No valid key found.\n");
+    }
+
+    return 0;
+}
