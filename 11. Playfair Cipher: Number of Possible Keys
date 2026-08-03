@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include <math.h>
+
+int main()
+{
+    int i;
+    long double totalKeys = 1.0;
+    long double effectiveKeys;
+    long double powerOfTwo;
+    long double effectivePower;
+
+    /* Calculate 25 factorial */
+    for(i = 1; i <= 25; i++)
+    {
+        totalKeys = totalKeys * i;
+    }
+
+    /*
+       There are 5 cyclic row shifts and
+       5 cyclic column shifts.
+
+       Therefore, 5 x 5 = 25 arrangements
+       can give the same encryption result.
+    */
+    effectiveKeys = totalKeys / 25.0;
+
+    powerOfTwo = log2l(totalKeys);
+    effectivePower = log2l(effectiveKeys);
+
+    printf("PLAYFAIR CIPHER KEY ANALYSIS\n");
+    printf("----------------------------\n");
+
+    printf("Total possible Playfair keys = 25!\n");
+    printf("Total keys = %.0Lf\n", totalKeys);
+    printf("Approximate power of 2 = 2^%.2Lf\n",
+           powerOfTwo);
+
+    printf("\nEquivalent arrangements per key = 25\n");
+
+    printf("Effectively unique keys = 25! / 25\n");
+    printf("Effective keys = %.0Lf\n", effectiveKeys);
+    printf("Approximate effective power = 2^%.2Lf\n",
+           effectivePower);
+
+    return 0;
+}
