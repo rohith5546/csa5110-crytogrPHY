@@ -1,0 +1,203 @@
+#include <stdio.h>
+#include <string.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
+#define BUFFER_SIZE 1024
+
+void printHex(const unsigned char data[], int length)
+{
+    int i;
+
+    for (i = 0; i < length; i++)
+        printf("%02X", data[i]);
+
+    printf("\n");
+}
+
+int encrypt3DESCBC(const unsigned char plaintext[],
+                  int plaintextLength,
+                  const unsigned char key[],
+                  const unsigned char iv[],
+                  unsigned char ciphertext[])
+{
+    EVP_CIPHER_CTX *context;
+    int length;
+    int ciphertextLength;
+
+    context = EVP_CIPHER_CTX_new();
+
+    if (context == NULL)
+        return -1;
+
+    if (EVP_EncryptInit_ex(context,
+                           EVP_des_ede3_cbc(),
+                           NULL,
+                           key,
+                           iv) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    if (EVP_EncryptUpdate(context,
+                          ciphertext,
+                          &length,
+                          plaintext,
+                          plaintextLength) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    ciphertextLength = length;
+
+    if (EVP_EncryptFinal_ex(context,
+                            ciphertext + length,
+                            &length) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    ciphertextLength += length;
+
+    EVP_CIPHER_CTX_free(context);
+
+    return ciphertextLength;
+}
+
+int decrypt3DESCBC(const unsigned char ciphertext[],
+                  int ciphertextLength,
+                  const unsigned char key[],
+                  const unsigned char iv[],
+                  unsigned char plaintext[])
+{
+    EVP_CIPHER_CTX *context;
+    int length;
+    int plaintextLength;
+
+    context = EVP_CIPHER_CTX_new();
+
+    if (context == NULL)
+        return -1;
+
+    if (EVP_DecryptInit_ex(context,
+                           EVP_des_ede3_cbc(),
+                           NULL,
+                           key,
+                           iv) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    if (EVP_DecryptUpdate(context,
+                          plaintext,
+                          &length,
+                          ciphertext,
+                          ciphertextLength) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    plaintextLength = length;
+
+    if (EVP_DecryptFinal_ex(context,
+                            plaintext + length,
+                            &length) != 1)
+    {
+        EVP_CIPHER_CTX_free(context);
+        return -1;
+    }
+
+    plaintextLength += length;
+    plaintext[plaintextLength] = '\0';
+
+    EVP_CIPHER_CTX_free(context);
+
+    return plaintextLength;
+}
+
+int main(void)
+{
+    unsigned char plaintext[BUFFER_SIZE];
+    unsigned char ciphertext[BUFFER_SIZE + 32];
+    unsigned char decryptedText[BUFFER_SIZE + 32];
+
+    /*
+       3DES uses a 24-byte key.
+       A real application must generate the key randomly and
+       store it securely.
+    */
+    unsigned char key[24] = {
+        0x01, 0x23, 0x45, 0x67,
+        0x89, 0xAB, 0xCD, 0xEF,
+
+        0x23, 0x45, 0x67, 0x89,
+        0xAB, 0xCD, 0xEF, 0x01,
+
+        0x45, 0x67, 0x89, 0xAB,
+        0xCD, 0xEF, 0x01, 0x23
+    };
+
+    /* DES and 3DES have an 8-byte block size */
+    unsigned char iv[8] = {
+        0x12, 0x34, 0x56, 0x78,
+        0x90, 0xAB, 0xCD, 0xEF
+    };
+
+    int ciphertextLength;
+    int decryptedLength;
+
+    printf("3DES CBC ENCRYPTION\n");
+    printf("-------------------\n");
+
+    printf("Enter plaintext: ");
+
+    if (fgets((char *)plaintext,
+              sizeof(plaintext),
+              stdin) == NULL)
+    {
+        printf("Input error.\n");
+        return 1;
+    }
+
+    plaintext[strcspn((char *)plaintext, "\n")] = '\0';
+
+    ciphertextLength =
+        encrypt3DESCBC(plaintext,
+                       (int)strlen((char *)plaintext),
+                       key,
+                       iv,
+                       ciphertext);
+
+    if (ciphertextLength < 0)
+    {
+        printf("Encryption failed.\n");
+        ERR_print_errors_fp(stderr);
+        return 1;
+    }
+
+    printf("\nCiphertext in hexadecimal:\n");
+    printHex(ciphertext, ciphertextLength);
+
+    decryptedLength =
+        decrypt3DESCBC(ciphertext,
+                       ciphertextLength,
+                       key,
+                       iv,
+                       decryptedText);
+
+    if (decryptedLength < 0)
+    {
+        printf("Decryption failed.\n");
+        ERR_print_errors_fp(stderr);
+        return 1;
+    }
+
+    printf("\nDecrypted plaintext:\n%s\n", decryptedText);
+
+    return 0;
+}
