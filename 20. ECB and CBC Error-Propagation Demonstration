@@ -1,0 +1,220 @@
+#include <stdio.h>
+#include <string.h>
+#include <openssl/evp.h>
+
+#define BLOCK_SIZE 8
+#define BLOCK_COUNT 4
+#define DATA_SIZE (BLOCK_SIZE * BLOCK_COUNT)
+
+void printBlocks(const char label[],
+                 const unsigned char data[])
+{
+    int block;
+    int i;
+
+    printf("\n%s\n", label);
+
+    for (block = 0; block < BLOCK_COUNT; block++)
+    {
+        printf("Block P%d: ", block + 1);
+
+        for (i = 0; i < BLOCK_SIZE; i++)
+        {
+            unsigned char value =
+                data[block * BLOCK_SIZE + i];
+
+            if (value >= 32 && value <= 126)
+                printf("%c", value);
+            else
+                printf(".");
+        }
+
+        printf("    Hex: ");
+
+        for (i = 0; i < BLOCK_SIZE; i++)
+        {
+            printf("%02X",
+                   data[block * BLOCK_SIZE + i]);
+        }
+
+        printf("\n");
+    }
+}
+
+int processCipher(int encrypt,
+                  const EVP_CIPHER *cipher,
+                  const unsigned char input[],
+                  unsigned char output[],
+                  const unsigned char key[],
+                  const unsigned char iv[])
+{
+    EVP_CIPHER_CTX *context;
+    int outputLength = 0;
+    int temporaryLength = 0;
+
+    context = EVP_CIPHER_CTX_new();
+
+    if (context == NULL)
+        return 0;
+
+    if (encrypt)
+    {
+        if (EVP_EncryptInit_ex(context,
+                               cipher,
+                               NULL,
+                               key,
+                               iv) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+
+        EVP_CIPHER_CTX_set_padding(context, 0);
+
+        if (EVP_EncryptUpdate(context,
+                              output,
+                              &outputLength,
+                              input,
+                              DATA_SIZE) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+
+        if (EVP_EncryptFinal_ex(context,
+                                output + outputLength,
+                                &temporaryLength) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+    }
+    else
+    {
+        if (EVP_DecryptInit_ex(context,
+                               cipher,
+                               NULL,
+                               key,
+                               iv) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+
+        EVP_CIPHER_CTX_set_padding(context, 0);
+
+        if (EVP_DecryptUpdate(context,
+                              output,
+                              &outputLength,
+                              input,
+                              DATA_SIZE) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+
+        if (EVP_DecryptFinal_ex(context,
+                                output + outputLength,
+                                &temporaryLength) != 1)
+        {
+            EVP_CIPHER_CTX_free(context);
+            return 0;
+        }
+    }
+
+    EVP_CIPHER_CTX_free(context);
+
+    return outputLength + temporaryLength;
+}
+
+int main(void)
+{
+    /*
+       Four blocks, each containing exactly eight bytes.
+    */
+    unsigned char plaintext[DATA_SIZE] = {
+        'B','L','O','C','K','0','1','A',
+        'B','L','O','C','K','0','2','B',
+        'B','L','O','C','K','0','3','C',
+        'B','L','O','C','K','0','4','D'
+    };
+
+    unsigned char key[24] = {
+        0x01, 0x23, 0x45, 0x67,
+        0x89, 0xAB, 0xCD, 0xEF,
+
+        0x23, 0x45, 0x67, 0x89,
+        0xAB, 0xCD, 0xEF, 0x01,
+
+        0x45, 0x67, 0x89, 0xAB,
+        0xCD, 0xEF, 0x01, 0x23
+    };
+
+    unsigned char iv[8] = {
+        0x12, 0x34, 0x56, 0x78,
+        0x90, 0xAB, 0xCD, 0xEF
+    };
+
+    unsigned char ecbCiphertext[DATA_SIZE];
+    unsigned char cbcCiphertext[DATA_SIZE];
+
+    unsigned char damagedECB[DATA_SIZE];
+    unsigned char damagedCBC[DATA_SIZE];
+
+    unsigned char ecbResult[DATA_SIZE];
+    unsigned char cbcResult[DATA_SIZE];
+
+    printBlocks("Original plaintext blocks:", plaintext);
+
+    processCipher(1,
+                  EVP_des_ede3_ecb(),
+                  plaintext,
+                  ecbCiphertext,
+                  key,
+                  NULL);
+
+    processCipher(1,
+                  EVP_des_ede3_cbc(),
+                  plaintext,
+                  cbcCiphertext,
+                  key,
+                  iv);
+
+    memcpy(damagedECB, ecbCiphertext, DATA_SIZE);
+    memcpy(damagedCBC, cbcCiphertext, DATA_SIZE);
+
+    /*
+       Flip one bit in ciphertext block C1.
+    */
+    damagedECB[0] ^= 0x01;
+    damagedCBC[0] ^= 0x01;
+
+    processCipher(0,
+                  EVP_des_ede3_ecb(),
+                  damagedECB,
+                  ecbResult,
+                  key,
+                  NULL);
+
+    processCipher(0,
+                  EVP_des_ede3_cbc(),
+                  damagedCBC,
+                  cbcResult,
+                  key,
+                  iv);
+
+    printBlocks("ECB result after one-bit error in C1:",
+                ecbResult);
+
+    printBlocks("CBC result after one-bit error in C1:",
+                cbcResult);
+
+    printf("\nOBSERVATION\n");
+    printf("-----------\n");
+    printf("ECB: Only P1 is corrupted.\n");
+    printf("CBC: P1 is severely corrupted and one corresponding "
+           "bit in P2 changes.\n");
+    printf("CBC: P3 and P4 are not affected.\n");
+
+    return 0;
+}
