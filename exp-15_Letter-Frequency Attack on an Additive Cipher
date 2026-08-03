@@ -1,0 +1,162 @@
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#define MAX_TEXT 2000
+
+typedef struct
+{
+    int key;
+    double score;
+    char plaintext[MAX_TEXT];
+} Candidate;
+
+/* Expected English letter frequencies */
+double englishFrequency[26] = {
+    8.167, 1.492, 2.782, 4.253, 12.702, 2.228,
+    2.015, 6.094, 6.966, 0.153, 0.772, 4.025,
+    2.406, 6.749, 7.507, 1.929, 0.095, 5.987,
+    6.327, 9.056, 2.758, 0.978, 2.360, 0.150,
+    1.974, 0.074
+};
+
+/* Decrypt using additive-cipher key */
+void decrypt(const char ciphertext[], char plaintext[], int key)
+{
+    int i;
+
+    for (i = 0; ciphertext[i] != '\0'; i++)
+    {
+        if (isupper((unsigned char)ciphertext[i]))
+        {
+            plaintext[i] =
+                (char)(((ciphertext[i] - 'A' - key + 26) % 26) + 'A');
+        }
+        else if (islower((unsigned char)ciphertext[i]))
+        {
+            plaintext[i] =
+                (char)(((ciphertext[i] - 'a' - key + 26) % 26) + 'a');
+        }
+        else
+        {
+            plaintext[i] = ciphertext[i];
+        }
+    }
+
+    plaintext[i] = '\0';
+}
+
+/* Lower chi-square value means text is closer to English */
+double calculateScore(const char text[])
+{
+    int count[26] = {0};
+    int totalLetters = 0;
+    int i;
+    double score = 0.0;
+
+    for (i = 0; text[i] != '\0'; i++)
+    {
+        if (isalpha((unsigned char)text[i]))
+        {
+            int index = toupper((unsigned char)text[i]) - 'A';
+            count[index]++;
+            totalLetters++;
+        }
+    }
+
+    if (totalLetters == 0)
+        return 999999.0;
+
+    for (i = 0; i < 26; i++)
+    {
+        double expected =
+            englishFrequency[i] * totalLetters / 100.0;
+
+        if (expected > 0)
+        {
+            double difference = count[i] - expected;
+            score += (difference * difference) / expected;
+        }
+    }
+
+    return score;
+}
+
+int compareCandidates(const void *a, const void *b)
+{
+    Candidate *first = (Candidate *)a;
+    Candidate *second = (Candidate *)b;
+
+    if (first->score < second->score)
+        return -1;
+
+    if (first->score > second->score)
+        return 1;
+
+    return 0;
+}
+
+int main(void)
+{
+    char ciphertext[MAX_TEXT];
+    Candidate candidates[26];
+    int top;
+    int key;
+    int i;
+
+    printf("LETTER FREQUENCY ATTACK ON ADDITIVE CIPHER\n");
+    printf("------------------------------------------\n");
+
+    printf("Enter ciphertext:\n");
+    if (fgets(ciphertext, sizeof(ciphertext), stdin) == NULL)
+    {
+        printf("Input error.\n");
+        return 1;
+    }
+
+    ciphertext[strcspn(ciphertext, "\n")] = '\0';
+
+    printf("How many possible plaintexts should be displayed? ");
+    if (scanf("%d", &top) != 1)
+    {
+        printf("Invalid number.\n");
+        return 1;
+    }
+
+    if (top < 1)
+        top = 1;
+
+    if (top > 26)
+        top = 26;
+
+    for (key = 0; key < 26; key++)
+    {
+        candidates[key].key = key;
+
+        decrypt(ciphertext,
+                candidates[key].plaintext,
+                key);
+
+        candidates[key].score =
+            calculateScore(candidates[key].plaintext);
+    }
+
+    qsort(candidates,
+          26,
+          sizeof(Candidate),
+          compareCandidates);
+
+    printf("\nTop %d possible plaintexts:\n\n", top);
+
+    for (i = 0; i < top; i++)
+    {
+        printf("Rank %d\n", i + 1);
+        printf("Possible key : %d\n", candidates[i].key);
+        printf("Score        : %.2f\n", candidates[i].score);
+        printf("Plaintext    : %s\n\n",
+               candidates[i].plaintext);
+    }
+
+    return 0;
+}
