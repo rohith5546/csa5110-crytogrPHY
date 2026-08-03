@@ -1,0 +1,387 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+#include <math.h>
+
+#define MAX_TEXT 5000
+#define MAX_RESULTS 20
+#define RESTARTS 200
+#define ITERATIONS 30000
+
+typedef struct
+{
+    char key[27];
+    char plaintext[MAX_TEXT];
+    double score;
+} Result;
+
+/*
+   Most frequent letters in English, from high to low.
+   The key maps ciphertext letters A-Z to plaintext letters.
+*/
+const char englishOrder[] = "ETAOINSHRDLCUMWFGYPBVKJXQZ";
+
+const char *commonTrigrams[] = {
+    "THE", "AND", "ING", "HER", "ERE", "ENT", "THA",
+    "NTH", "WAS", "ETH", "FOR", "DTH", "HES", "VER",
+    "HIS", "OFT", "ITH", "FTH", "STH", "OTH", "RES",
+    "ONT", "TIO", "EST", "ERS", "ATI", "HAT", "ATE",
+    "ALL", "HEN", "BUT", "NOT", "YOU", "ARE"
+};
+
+const char *commonWords[] = {
+    " THE ", " AND ", " OF ", " TO ", " IS ", " IN ",
+    " THAT ", " IT ", " FOR ", " WITH ", " AS ", " ON ",
+    " THIS ", " BE ", " ARE ", " WAS ", " BY ", " OR ",
+    " FROM ", " AT ", " YOU ", " HAVE ", " NOT "
+};
+
+void decryptText(const char ciphertext[],
+                 char plaintext[],
+                 const char key[])
+{
+    int i;
+
+    for (i = 0; ciphertext[i] != '\0'; i++)
+    {
+        if (isalpha((unsigned char)ciphertext[i]))
+        {
+            int index =
+                toupper((unsigned char)ciphertext[i]) - 'A';
+
+            char decoded = key[index];
+
+            if (islower((unsigned char)ciphertext[i]))
+                plaintext[i] = (char)tolower(decoded);
+            else
+                plaintext[i] = decoded;
+        }
+        else
+        {
+            plaintext[i] = ciphertext[i];
+        }
+    }
+
+    plaintext[i] = '\0';
+}
+
+int countOccurrences(const char text[], const char pattern[])
+{
+    int count = 0;
+    const char *position = text;
+
+    while ((position = strstr(position, pattern)) != NULL)
+    {
+        count++;
+        position++;
+    }
+
+    return count;
+}
+
+double scorePlaintext(const char text[])
+{
+    char upper[MAX_TEXT + 3];
+    char spaced[MAX_TEXT + 5];
+    int letterCount[26] = {0};
+    int total = 0;
+    int i;
+    double score = 0.0;
+
+    double expected[26] = {
+        8.167, 1.492, 2.782, 4.253, 12.702, 2.228,
+        2.015, 6.094, 6.966, 0.153, 0.772, 4.025,
+        2.406, 6.749, 7.507, 1.929, 0.095, 5.987,
+        6.327, 9.056, 2.758, 0.978, 2.360, 0.150,
+        1.974, 0.074
+    };
+
+    for (i = 0; text[i] != '\0'; i++)
+    {
+        upper[i] = (char)toupper((unsigned char)text[i]);
+
+        if (isalpha((unsigned char)upper[i]))
+        {
+            letterCount[upper[i] - 'A']++;
+            total++;
+        }
+    }
+
+    upper[i] = '\0';
+
+    snprintf(spaced, sizeof(spaced), " %s ", upper);
+
+    /* Reward common English trigrams */
+    for (i = 0;
+         i < (int)(sizeof(commonTrigrams) /
+                   sizeof(commonTrigrams[0]));
+         i++)
+    {
+        score +=
+            12.0 * countOccurrences(upper,
+                                    commonTrigrams[i]);
+    }
+
+    /* Reward common complete words */
+    for (i = 0;
+         i < (int)(sizeof(commonWords) /
+                   sizeof(commonWords[0]));
+         i++)
+    {
+        score +=
+            25.0 * countOccurrences(spaced,
+                                    commonWords[i]);
+    }
+
+    /*
+       Frequency penalty:
+       Text whose letter distribution differs strongly from
+       English receives a lower score.
+    */
+    if (total > 0)
+    {
+        for (i = 0; i < 26; i++)
+        {
+            double observed =
+                100.0 * letterCount[i] / total;
+
+            score -=
+                fabs(observed - expected[i]) * 0.7;
+        }
+    }
+
+    /* Reward common double letters */
+    score += 4.0 * countOccurrences(upper, "LL");
+    score += 4.0 * countOccurrences(upper, "EE");
+    score += 4.0 * countOccurrences(upper, "SS");
+    score += 4.0 * countOccurrences(upper, "OO");
+    score += 4.0 * countOccurrences(upper, "TT");
+
+    return score;
+}
+
+void createInitialKey(const char ciphertext[], char key[])
+{
+    int frequency[26] = {0};
+    int used[26] = {0};
+    int position;
+    int i;
+    int j;
+
+    for (i = 0; ciphertext[i] != '\0'; i++)
+    {
+        if (isalpha((unsigned char)ciphertext[i]))
+        {
+            int index =
+                toupper((unsigned char)ciphertext[i]) - 'A';
+
+            frequency[index]++;
+        }
+    }
+
+    for (i = 0; i < 26; i++)
+        key[i] = '?';
+
+    /*
+       Find the most frequent ciphertext letter and map it
+       to E, second most frequent to T, and so on.
+    */
+    for (position = 0; position < 26; position++)
+    {
+        int bestIndex = -1;
+        int bestValue = -1;
+
+        for (j = 0; j < 26; j++)
+        {
+            if (!used[j] && frequency[j] > bestValue)
+            {
+                bestValue = frequency[j];
+                bestIndex = j;
+            }
+        }
+
+        if (bestIndex >= 0)
+        {
+            key[bestIndex] = englishOrder[position];
+            used[bestIndex] = 1;
+        }
+    }
+
+    key[26] = '\0';
+}
+
+void swapCharacters(char key[], int a, int b)
+{
+    char temporary = key[a];
+    key[a] = key[b];
+    key[b] = temporary;
+}
+
+void randomizeKey(char key[], int swaps)
+{
+    int i;
+
+    for (i = 0; i < swaps; i++)
+    {
+        int a = rand() % 26;
+        int b = rand() % 26;
+        swapCharacters(key, a, b);
+    }
+}
+
+void addResult(Result results[],
+               int *resultCount,
+               const char key[],
+               const char plaintext[],
+               double score,
+               int top)
+{
+    int i;
+    int position;
+
+    /* Do not insert duplicate keys */
+    for (i = 0; i < *resultCount; i++)
+    {
+        if (strcmp(results[i].key, key) == 0)
+            return;
+    }
+
+    if (*resultCount < top)
+    {
+        position = *resultCount;
+        (*resultCount)++;
+    }
+    else
+    {
+        if (score <= results[*resultCount - 1].score)
+            return;
+
+        position = *resultCount - 1;
+    }
+
+    strcpy(results[position].key, key);
+    strcpy(results[position].plaintext, plaintext);
+    results[position].score = score;
+
+    while (position > 0 &&
+           results[position].score >
+           results[position - 1].score)
+    {
+        Result temporary = results[position];
+        results[position] = results[position - 1];
+        results[position - 1] = temporary;
+        position--;
+    }
+}
+
+int main(void)
+{
+    char ciphertext[MAX_TEXT];
+    char initialKey[27];
+    Result results[MAX_RESULTS];
+    int resultCount = 0;
+    int top;
+    int restart;
+    int i;
+
+    srand((unsigned int)time(NULL));
+
+    printf("MONOALPHABETIC SUBSTITUTION CIPHER ATTACK\n");
+    printf("-----------------------------------------\n");
+
+    printf("Enter ciphertext:\n");
+
+    if (fgets(ciphertext, sizeof(ciphertext), stdin) == NULL)
+    {
+        printf("Input error.\n");
+        return 1;
+    }
+
+    ciphertext[strcspn(ciphertext, "\n")] = '\0';
+
+    printf("How many possible plaintexts should be shown? ");
+
+    if (scanf("%d", &top) != 1)
+    {
+        printf("Invalid number.\n");
+        return 1;
+    }
+
+    if (top < 1)
+        top = 1;
+
+    if (top > MAX_RESULTS)
+        top = MAX_RESULTS;
+
+    createInitialKey(ciphertext, initialKey);
+
+    for (restart = 0; restart < RESTARTS; restart++)
+    {
+        char currentKey[27];
+        char trialKey[27];
+        char currentText[MAX_TEXT];
+        char trialText[MAX_TEXT];
+
+        double currentScore;
+        int iteration;
+
+        strcpy(currentKey, initialKey);
+
+        randomizeKey(currentKey, 5 + rand() % 20);
+
+        decryptText(ciphertext, currentText, currentKey);
+        currentScore = scorePlaintext(currentText);
+
+        for (iteration = 0;
+             iteration < ITERATIONS;
+             iteration++)
+        {
+            int a = rand() % 26;
+            int b = rand() % 26;
+
+            double trialScore;
+
+            strcpy(trialKey, currentKey);
+            swapCharacters(trialKey, a, b);
+
+            decryptText(ciphertext, trialText, trialKey);
+            trialScore = scorePlaintext(trialText);
+
+            /*
+               Accept an improvement. A small probability of
+               accepting a worse result avoids local maxima.
+            */
+            if (trialScore > currentScore ||
+                (rand() % 10000) < 5)
+            {
+                strcpy(currentKey, trialKey);
+                strcpy(currentText, trialText);
+                currentScore = trialScore;
+            }
+        }
+
+        addResult(results,
+                  &resultCount,
+                  currentKey,
+                  currentText,
+                  currentScore,
+                  top);
+    }
+
+    printf("\nTop possible plaintexts:\n\n");
+
+    for (i = 0; i < resultCount; i++)
+    {
+        printf("Rank %d\n", i + 1);
+        printf("Score : %.2f\n", results[i].score);
+        printf("Key   : %s\n", results[i].key);
+        printf("Text  : %s\n\n", results[i].plaintext);
+    }
+
+    printf("Key meaning: ciphertext A-Z maps to the displayed "
+           "plaintext letters.\n");
+
+    return 0;
+}
