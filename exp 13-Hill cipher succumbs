@@ -1,0 +1,42 @@
+#include <stdio.h>
+
+int main() {
+
+    int plaintext[2][2] = {
+        {7,4},
+        {11,15}
+    };
+
+    int ciphertext[2][2] = {
+        {3,12},
+        {18,8}
+    };
+
+    printf("Known Plaintext Attack Demonstration\n\n");
+
+    printf("Plaintext Matrix:\n");
+
+    for(int i=0;i<2;i++){
+        for(int j=0;j<2;j++)
+            printf("%3d",plaintext[i][j]);
+        printf("\n");
+    }
+
+    printf("\nCiphertext Matrix:\n");
+
+    for(int i=0;i<2;i++){
+        for(int j=0;j<2;j++)
+            printf("%3d",ciphertext[i][j]);
+        printf("\n");
+    }
+
+    printf("\nUsing\n");
+    printf("K = C × P^-1 (mod 26)\n");
+
+    printf("\nIf enough plaintext-ciphertext pairs are known,\n");
+    printf("the attacker computes the key matrix.\n");
+
+    printf("\nHence Hill Cipher is vulnerable to Known Plaintext Attack.\n");
+
+    return 0;
+}
