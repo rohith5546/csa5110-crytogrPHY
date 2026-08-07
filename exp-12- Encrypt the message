@@ -1,0 +1,73 @@
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+int main() {
+    char text[200];
+    int key[2][2] = {{9,4},{5,7}};
+    int inverse[2][2] = {{7,22},{21,9}}; // Inverse of key mod 26
+
+    printf("Enter plaintext (even letters only): ");
+    fgets(text, sizeof(text), stdin);
+
+    int len = strlen(text);
+    char plain[200];
+    int k = 0;
+
+    // Remove spaces and convert to lowercase
+    for(int i=0;i<len;i++){
+        if(isalpha(text[i])){
+            plain[k++] = tolower(text[i]);
+        }
+    }
+
+    if(k%2!=0)
+        plain[k++]='x';
+
+    plain[k]='\0';
+
+    char cipher[200];
+
+    printf("\nEncryption Process:\n");
+
+    for(int i=0;i<k;i+=2){
+
+        int p1 = plain[i]-'a';
+        int p2 = plain[i+1]-'a';
+
+        int c1 = (key[0][0]*p1 + key[0][1]*p2)%26;
+        int c2 = (key[1][0]*p1 + key[1][1]*p2)%26;
+
+        cipher[i]=c1+'a';
+        cipher[i+1]=c2+'a';
+
+        printf("(%c,%c) -> (%c,%c)\n",
+        plain[i],plain[i+1],cipher[i],cipher[i+1]);
+    }
+
+    cipher[k]='\0';
+
+    printf("\nCipher Text = %s\n",cipher);
+
+    printf("\nDecryption:\n");
+
+    char decrypt[200];
+
+    for(int i=0;i<k;i+=2){
+
+        int c1=cipher[i]-'a';
+        int c2=cipher[i+1]-'a';
+
+        int p1=(inverse[0][0]*c1 + inverse[0][1]*c2)%26;
+        int p2=(inverse[1][0]*c1 + inverse[1][1]*c2)%26;
+
+        decrypt[i]=p1+'a';
+        decrypt[i+1]=p2+'a';
+    }
+
+    decrypt[k]='\0';
+
+    printf("Recovered Plaintext = %s\n",decrypt);
+
+    return 0;
+}
