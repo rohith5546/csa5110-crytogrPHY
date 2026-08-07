@@ -1,0 +1,44 @@
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+int main(){
+
+    char text[100];
+
+    int key[]={
+        9,0,1,7,23,15,21,14,11,11,2,8,9
+    };
+
+    printf("Enter Plaintext: ");
+
+    fgets(text,sizeof(text),stdin);
+
+    int len=strlen(text);
+
+    printf("\nCipher Text: ");
+
+    int j=0;
+
+    for(int i=0;i<len;i++){
+
+        if(isalpha(text[i])){
+
+            char ch=tolower(text[i]);
+
+            int p=ch-'a';
+
+            int c=(p+key[j])%26;
+
+            printf("%c",c+'a');
+
+            j++;
+        }
+        else if(text[i]==' ')
+            printf(" ");
+    }
+
+    printf("\n");
+
+    return 0;
+}
