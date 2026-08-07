@@ -1,0 +1,36 @@
+#include <stdio.h>
+
+int main() {
+    int key[56];
+    int subkey[48];
+    int i;
+
+    printf("Enter the 56-bit DES key (0 or 1):\n");
+
+    for(i = 0; i < 56; i++) {
+        scanf("%d", &key[i]);
+    }
+
+    // First 24 bits of subkey from first 28 bits (C)
+    for(i = 0; i < 24; i++) {
+        subkey[i] = key[i];
+    }
+
+    // Last 24 bits of subkey from last 28 bits (D)
+    for(i = 24; i < 48; i++) {
+        subkey[i] = key[28 + (i - 24)];
+    }
+
+    printf("\nGenerated 48-bit Subkey:\n");
+
+    for(i = 0; i < 48; i++) {
+        printf("%d", subkey[i]);
+
+        if((i + 1) % 8 == 0)
+            printf(" ");
+    }
+
+    printf("\n");
+
+    return 0;
+}
